@@ -1,0 +1,8 @@
+dependencies:
+  - smartcontractkit/chainlink@2.7.0
+
+compiler:
+  solc:
+    version: v0.8.22
+    remappings:
+      - "@chainlink=smartcontractkit/chainlink@2.7.0"
