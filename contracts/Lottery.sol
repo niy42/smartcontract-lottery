@@ -5,9 +5,10 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
 pragma solidity ^0.8.22;
 
-/*
+/*******************************************************************************
  *@title: LOTTERY.SOL
  *@author: OBANLA ADENIYI (niy42)
+ *******************************************************************************
  *@note: a simple project lottery that can be incorporated into web3 lottery platforms and games.
  *@note: The VRF configuration setting for this program is specifically built for Sepolia testnet.
  * If you choose to use any network other than Sepolia, ensure that the networks' configuration settings are fixed properly.
