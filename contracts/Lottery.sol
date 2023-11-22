@@ -17,11 +17,10 @@ pragma solidity ^0.8.22;
 contract Lottery is VRFConsumerBaseV2 {
     /*-----------------* STATE VARIABLES *------------------*/
     //VRFCoordinator config for Sepolia testnet
-    bytes32 keyHash =
-        0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c;
+    bytes32 keyHash;
     uint64 subId;
-    address vrfCoordinator = 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625;
-    uint16 minimumRequestConfirmations;
+    address vrfCoordinator;
+    uint16 minimumRequestConfirmations = 3;
     uint32 callbackGasLimit = 300000;
     uint32 numWords = 1;
 
@@ -49,12 +48,16 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256[] randomNumbers;
     }
 
-    constructor(uint64 _subId) VRFConsumerBaseV2(vrfCoordinator) {
-        priceFeed = AggregatorV3Interface(
-            0x694AA1769357215DE4FAC081bf1f309aDC325306
-        );
-        COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
+    constructor(
+        uint64 _subId,
+        bytes32 _keyHash,
+        address _priceFeed,
+        address _vrfCoordinator
+    ) VRFConsumerBaseV2(_vrfCoordinator) {
+        priceFeed = AggregatorV3Interface(_priceFeed);
+        COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
         subId = _subId;
+        keyHash = _keyHash;
     }
 
     mapping(uint256 => lotteryData) public lottery; // lotteryId and lotteryCount mapped to lotteryData
@@ -149,14 +152,13 @@ contract Lottery is VRFConsumerBaseV2 {
             "Error: ticket price must be greater than zero"
         );
         require(block.timestamp < _expiration, "Error: Lottery as expired");
-        address[] memory ticketArray;
         lotteryCount++;
         lottery[lotteryCount] = lotteryData({
             lotteryOperator: _lotteryOperator,
             operatorCommissionPercentage: _operatorCommissionPercentage,
             maxTicket: _maxTicket,
             ticketPrice: _ticketPrice,
-            tickets: ticketArray,
+            tickets: new address[](0),
             lotteryWinner: address(0),
             expiration: _expiration
         });
