@@ -10,7 +10,7 @@ pragma solidity ^0.8.22;
  *@author: OBANLA ADENIYI (niy42)
  *@note: a simple project lottery that can be incorporated into web3 lottery platforms and games.
  *@note: The VRF configuration setting for this program is specifically built for Sepolia testnet.
- * If you are using any network other than Sepolia, ensure the networks' configurations are set properly.
+ * If you choose to use any network other than Sepolia, ensure that the networks' configuration settings are fixed properly.
  */
 
 contract Lottery is VRFConsumerBaseV2 {
