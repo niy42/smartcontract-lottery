@@ -2,6 +2,7 @@
 
 import "./VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
 pragma solidity ^0.8.22;
 
@@ -10,19 +11,35 @@ pragma solidity ^0.8.22;
  *@author: OBANLA ADENIYI (niy42)
  *******************************************************************************
  *@note: a simple project lottery that can be incorporated into web3 lottery platforms and games.
- *@note: The VRF configuration setting for this program is specifically built for Sepolia testnet.
- * If you choose to use any network other than Sepolia, ensure that the networks' configuration settings are fixed properly.
+ *@dev: The VRF configuration setting for this program is specifically built for Sepolia testnet.
+ * If you choose to use any network other than Sepolia, ensure that the networks' configuration settings are properly set.
  */
 
 contract Lottery is VRFConsumerBaseV2 {
     /*-----------------* STATE VARIABLES *------------------*/
     //VRFCoordinator config for Sepolia testnet
-    bytes32 keyHash;
-    uint64 subId;
-    address vrfCoordinator;
-    uint16 minimumRequestConfirmations = 3;
-    uint32 callbackGasLimit = 300000;
-    uint32 numWords = 1;
+    // Your subscription ID.
+    uint64 immutable s_subscriptionId;
+
+    // The gas lane to use, which specifies the maximum gas price to bump to.
+    // For a list of available gas lanes on each network,
+    // see https://docs.chain.link/docs/vrf-contracts/#configurations
+    bytes32 immutable s_keyHash;
+
+    // Depends on the number of requested values that you want sent to the
+    // fulfillRandomWords() function. Storing each word costs about 20,000 gas,
+    // so 100,000 is a safe default for this example contract. Test and adjust
+    // this limit based on the network that you select, the size of the request,
+    // and the processing of the callback request in the fulfillRandomWords()
+    // function.
+    uint32 constant CALLBACK_GAS_LIMIT = 100000;
+
+    // The default is 3, but you can set this higher.
+    uint16 constant REQUEST_CONFIRMATIONS = 3;
+
+    // For this example, retrieve 2 random values in one request.
+    // Cannot exceed VRFCoordinatorV2.MAX_NUM_WORDS.
+    uint32 constant NUM_WORDS = 2;
 
     // contract addresses for realWorld data from an oracle(chainlink)
     AggregatorV3Interface internal priceFeed;
@@ -31,6 +48,8 @@ contract Lottery is VRFConsumerBaseV2 {
     // state variables
     address payable public owner;
     uint256 lotteryCount = 0;
+    uint256 public s_requestId;
+    uint256[] public s_randomWords;
 
     struct lotteryData {
         address lotteryOperator;
@@ -56,11 +75,13 @@ contract Lottery is VRFConsumerBaseV2 {
     ) VRFConsumerBaseV2(_vrfCoordinator) {
         priceFeed = AggregatorV3Interface(_priceFeed);
         COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
-        subId = _subId;
-        keyHash = _keyHash;
+        s_subscriptionId = _subId;
+        s_keyHash = _keyHash;
+        owner = payable(msg.sender);
+        lottery[lotteryCount].lotteryOperator = owner;
     }
 
-    mapping(uint256 => lotteryData) public lottery; // lotteryId and lotteryCount mapped to lotteryData
+    mapping(uint256 => lotteryData) public lottery; // lotteryId/lotteryCount mapped to lotteryData
     mapping(uint256 => lotteryStatus) public s_request; // requestId mapped to lotteryStatus
 
     //events
@@ -71,7 +92,7 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256 ticketPrice,
         uint256 expiration
     );
-    event ticketBoughts(
+    event ticketsBought(
         uint256 lotteryId,
         address buyer,
         uint256 numberOftickets
@@ -91,16 +112,8 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256 lotteryWinner,
         uint256 amount
     );
-    event requestFulfilled(
-        uint256 lotteryId,
-        uint256 requestId,
-        uint256 randomWords
-    );
-    event lotteryWinner(
-        uint256 lotteryId,
-        address lotteryWinner,
-        uint256 lotteryAmount
-    );
+    event requestFulfilled(uint256[] randomWords);
+    event lotteryWinner(uint256 lotteryId, address lotteryWinner);
 
     /* --------------* MODIFIERS *--------------- */
     modifier onlyOperator(uint256 _lotteryId) {
@@ -130,13 +143,13 @@ contract Lottery is VRFConsumerBaseV2 {
         return currentLottery.maxTicket - currentLottery.tickets.length;
     }
 
-    function startLottey(
+    function startLottery(
         address _lotteryOperator,
         uint256 _operatorCommissionPercentage,
         uint256 _maxTicket,
         uint256 _ticketPrice,
         uint256 _expiration
-    ) public {
+    ) public onlyOperator(lotteryCount) {
         require(
             _lotteryOperator != address(0),
             "Error: lottery operator cannot be 0x0!"
@@ -152,8 +165,7 @@ contract Lottery is VRFConsumerBaseV2 {
             "Error: ticket price must be greater than zero"
         );
         require(block.timestamp < _expiration, "Error: Lottery as expired");
-        lotteryCount++;
-        lottery[lotteryCount] = lotteryData({
+        lottery[lotteryCount++] = lotteryData({
             lotteryOperator: _lotteryOperator,
             operatorCommissionPercentage: _operatorCommissionPercentage,
             maxTicket: _maxTicket,
@@ -172,14 +184,14 @@ contract Lottery is VRFConsumerBaseV2 {
     }
 
     function BuyTickets(uint256 _lotteryId, uint256 tickets) public payable {
-        uint256 amount = msg.value;
+        uint256 payment = msg.value;
         require(tickets > 0, "Error: tickets must be greater than zero");
         require(
             tickets <= getRemainingTickets(_lotteryId),
             "Error: tickets must be less than or equal to remaining tickets"
         );
         require(
-            amount >= lottery[_lotteryId].ticketPrice,
+            payment >= lottery[_lotteryId].ticketPrice * tickets,
             "Error: amount must equal price"
         );
         require(
@@ -192,33 +204,33 @@ contract Lottery is VRFConsumerBaseV2 {
             currentLottery.tickets.push(msg.sender);
             ++i;
         }
-        emit ticketBoughts(_lotteryId, msg.sender, tickets);
+        emit ticketsBought(_lotteryId, msg.sender, tickets);
     }
 
-    function endLottery(uint256 _lotteryId) public returns (uint256 requestId) {
+    function endLottery(uint256 _lotteryId) public onlyOperator(_lotteryId) {
+        //require(
+        // block.timestamp > lottery[_lotteryId].expiration,
+        // "Error: lottery has not expired!"
+        // );
         require(
             lottery[_lotteryId].lotteryWinner == address(0),
-            "Error: lottery winner has been drawn"
+            "Error: lottery winner is not yet drawn!"
         );
-        require(
-            block.timestamp > lottery[_lotteryId].expiration,
-            "Error: lottery has not expired yet!"
+        // Will revert if subscription is not set and funded.
+        s_requestId = COORDINATOR.requestRandomWords(
+            s_keyHash,
+            s_subscriptionId,
+            REQUEST_CONFIRMATIONS,
+            CALLBACK_GAS_LIMIT,
+            NUM_WORDS
         );
-        requestId = COORDINATOR.requestRandomWords(
-            keyHash,
-            subId,
-            minimumRequestConfirmations,
-            callbackGasLimit,
-            numWords
-        );
-        s_request[requestId] = lotteryStatus({
+        s_request[s_requestId] = lotteryStatus({
             lotteryId: _lotteryId,
             exist: true,
             fulfilled: false,
             randomNumbers: new uint256[](0)
         });
-        emit requestLotteryWinnerSent(_lotteryId, requestId, numWords);
-        return requestId;
+        emit requestLotteryWinnerSent(_lotteryId, s_requestId, NUM_WORDS);
     }
 
     function claimLottery(
@@ -243,24 +255,23 @@ contract Lottery is VRFConsumerBaseV2 {
     }
 
     function fulfillRandomWords(
-        uint256 requestId,
+        uint256 /* requestId */,
         uint256[] memory randomWords
     ) internal override {
-        require(s_request[requestId].exist, "Error: No response");
-        uint256 lotteryId = s_request[requestId].lotteryId;
-        s_request[requestId].fulfilled = true;
-        s_request[requestId].randomNumbers = randomWords;
-        uint256 indexOfWinner = randomWords[0] %
-            lottery[lotteryId].tickets.length;
-        lottery[lotteryId].lotteryWinner = lottery[lotteryId].tickets[
+        s_randomWords = randomWords;
+        emit requestFulfilled(s_randomWords);
+    }
+
+    function DrawLotteryWinner(
+        uint256 _lotteryId
+    ) public onlyOperator(_lotteryId) returns (address _lotteryWinner) {
+        uint256 indexOfWinner = s_randomWords[0] %
+            lottery[_lotteryId].tickets.length;
+        lottery[_lotteryId].lotteryWinner = lottery[_lotteryId].tickets[
             indexOfWinner
         ];
-        uint256 winnerAmount = claimLottery(lotteryId);
-        emit requestFulfilled(lotteryId, requestId, randomWords[0]);
-        emit lotteryWinner(
-            lotteryId,
-            lottery[lotteryId].lotteryWinner,
-            winnerAmount
-        );
+        _lotteryWinner = lottery[_lotteryId].lotteryWinner;
+        emit lotteryWinner(_lotteryId, _lotteryWinner);
+        return _lotteryWinner;
     }
 }
