@@ -1,19 +1,10 @@
 // SPDX-License-Identifier: MIT
+
 import "./VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
 
 pragma solidity >=0.6.0 <0.9.0;
-
-/*******************************************************************************
- *@title: LOTTERY.SOL
- *@author: OBANLA ADENIYI (niy42)
- *******************************************************************************
- *@note: a simple project lottery that can be incorporated into web3 lottery platforms and games.
- *@dev: The VRF configuration setting for this program is specifically built for Sepolia testnet.
- * If you choose to use any network other than Sepolia, ensure that the networks' configuration settings are properly set.
- */
 
 contract Lottery is VRFConsumerBaseV2 {
     /* --- VRFCOORDINATOR REQUEST ARGS ---- */
@@ -21,7 +12,10 @@ contract Lottery is VRFConsumerBaseV2 {
     bytes32 keyHash;
     uint16 constant minimumRequestConfirmations = 3;
     uint32 constant callbackGasLimit = 100000;
-    uint32 numWords = 1;
+    uint32 numWords = 2;
+
+    uint32 s_subscriptionId;
+    uint16 requestConfirmations = 3;
 
     /* -------* CHAINLINK ORACLE ADDRESSES *--------- */
     AggregatorV3Interface internal priceFeed;
@@ -30,8 +24,10 @@ contract Lottery is VRFConsumerBaseV2 {
     // state variables
     address payable public owner;
     uint256[] public s_randomWords;
+    uint256 public s_requestId;
     address[] public funders;
     uint256 lotteryCount = 0;
+    uint256[] public requestIds;
 
     struct lotteryData {
         uint256 lotteryOperatorCommission;
@@ -50,15 +46,47 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256[] randomNumbers;
     }
 
+    //events
+    event lotteryCreated(
+        address lotteryOperator,
+        uint256 operatorCommissionPercentage,
+        uint256 maxTickets,
+        uint256 ticketPrice,
+        uint256 expiration
+    );
+    event ticketsBought(
+        uint256 lotteryId,
+        address buyer,
+        uint256 numberOftickets
+    );
+    event requestLotteryWinnerSent(
+        uint256 lotteryId,
+        uint256 requestId,
+        uint256 numWords
+    );
+    event logTicketCommission(
+        uint256 lotteryId,
+        uint256 lotteryOperator,
+        uint256 amount
+    );
+    event lotteryClaimed(
+        uint256 lotteryId,
+        uint256 lotteryWinner,
+        uint256 amount
+    );
+    event requestFulfilled(uint256[] randomWords);
+    event LotteryWinner(uint256 lotteryId, address lotteryWinner);
+
     mapping(uint256 => lotteryData) public lottery;
     mapping(uint256 => lotteryStatus) public s_request;
-    mapping(address => uint256) public balance;
+
+    //mapping(address => uint256) public balance;
 
     constructor(
         uint32 _subId,
-        address _vrfCoordinator,
+        bytes32 _keyHash,
         address _priceFeed,
-        bytes32 _keyHash
+        address _vrfCoordinator
     ) VRFConsumerBaseV2(_vrfCoordinator) {
         priceFeed = AggregatorV3Interface(_priceFeed);
         COORDINATOR = VRFCoordinatorV2Interface(_vrfCoordinator);
@@ -95,18 +123,18 @@ contract Lottery is VRFConsumerBaseV2 {
     }
 
     function startLottery(
-        uint256 _expiration,
         address _lotteryOperator,
         uint256 _lotteryOperatorCommission,
         uint256 _maxTickets,
-        uint256 _ticketPrice
+        uint256 _ticketPrice,
+        uint256 _expiration
     ) public onlyOperator(lotteryCount) {
         require(_expiration > block.timestamp, "Error: lottery has expired");
         require(_lotteryOperator != address(0), "Error: Invalid Operator");
         require(
             _lotteryOperatorCommission > 0 &&
                 _lotteryOperatorCommission % 5 == 0,
-            "Error: operator commission must be greater than zero and a multiple of five"
+            "Error: must be greater than zero and a multiple of five"
         );
         require(
             _maxTickets > 0,
@@ -123,9 +151,16 @@ contract Lottery is VRFConsumerBaseV2 {
             lotteryWinner: address(0),
             tickets: new address[](0)
         });
+        emit lotteryCreated(
+            _lotteryOperator,
+            _lotteryOperatorCommission,
+            _maxTickets,
+            _ticketPrice,
+            _expiration
+        );
     }
 
-    function BuyTickets(uint256 lotteryId, uint256 tickets) public payable {
+    function buyTickets(uint256 lotteryId, uint256 tickets) public payable {
         uint256 amount = msg.value;
         require(
             block.timestamp < lottery[lotteryId].expiration,
@@ -133,8 +168,8 @@ contract Lottery is VRFConsumerBaseV2 {
         );
         require(tickets > 0, "tickets must be greater than zero!");
         require(
-            amount == lottery[lotteryId].ticketPrice * tickets,
-            "Error: amount must equal price!"
+            amount >= lottery[lotteryId].ticketPrice * tickets,
+            "Error: amount must be greater or equal to ticketprice!"
         );
         require(
             tickets <= getRemainingTickets(lotteryId),
@@ -146,19 +181,20 @@ contract Lottery is VRFConsumerBaseV2 {
             lottery[lotteryId].tickets.push(msg.sender);
             ++i;
         }
+        emit ticketsBought(lotteryId, msg.sender, tickets);
     }
 
     function endLottery(
         uint256 _lotteryId
-    ) external onlyOperator(_lotteryId) returns (uint256 s_requestId) {
+    ) external onlyOperator(_lotteryId) returns (uint256) {
         require(
             lottery[_lotteryId].lotteryWinner == address(0),
             "Error: lottery winner has been selected"
         );
-        require(
-            lottery[_lotteryId].expiration < block.timestamp,
-            "Error: lottery has not expired!"
-        );
+        // require(
+        //     lottery[_lotteryId].expiration < block.timestamp,
+        //    "Error: lottery has not expired!"
+        // );
         s_requestId = COORDINATOR.requestRandomWords(
             keyHash,
             subId,
@@ -172,6 +208,7 @@ contract Lottery is VRFConsumerBaseV2 {
             fulfilled: false,
             randomNumbers: new uint256[](0)
         });
+        emit requestLotteryWinnerSent(_lotteryId, s_requestId, numWords);
         return s_requestId;
     }
 
@@ -210,24 +247,23 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256 winnerIndex = s_randomWords[0] % currentLottery.tickets.length;
         currentLottery.lotteryWinner = currentLottery.tickets[winnerIndex];
         lotteryWinner = currentLottery.lotteryWinner;
+        emit LotteryWinner(_lotteryId, lotteryWinner);
         return lotteryWinner;
     }
 
-    function fundme() external payable {
-        balance[msg.sender] += msg.value;
-        funders.push(msg.sender);
-    }
+    ///function fundme() external payable {
+    //    balance[msg.sender] += msg.value;
+    //    funders.push(msg.sender);
+    //}
 
-    function withdraw(uint256 amount) public payable {
-        require(balance[msg.sender] >= amount, "Error: insufficeient balance");
-        balance[msg.sender] -= amount;
-        (bool sent, ) = (msg.sender).call{value: amount}("");
-        require(sent, "Error: amount not sent");
-    }
+    //function withdraw(uint256 amount) public payable {
+    //    require(balance[msg.sender] >= amount, "Error: insufficeient balance");
+    //    balance[msg.sender] -= amount;
+    //     (bool sent, ) = (msg.sender).call{value: amount}("");
+    //     require(sent, "Error: amount not sent");
+    //}
 
-    receive() external payable {
-        // receives plain ETHER
-    }
+    receive() external payable {}
 
     fallback() external {}
 }

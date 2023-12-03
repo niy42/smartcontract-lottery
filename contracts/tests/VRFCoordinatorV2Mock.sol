@@ -19,7 +19,7 @@ contract VRFCoordinatorV2Mock is VRFCoordinatorV2Interface, ConfirmedOwner {
     error InsufficientBalance();
     error MustBeSubOwner(address owner);
     error TooManyConsumers();
-    //error InvalidConsumer();
+    error InvalidConsumer();
     error InvalidRandomWords();
     error Reentrant();
 
@@ -110,7 +110,9 @@ contract VRFCoordinatorV2Mock is VRFCoordinatorV2Interface, ConfirmedOwner {
     }
 
     modifier onlyValidConsumer(uint64 _subId, address _consumer) {
-        require(consumerIsAdded(_subId, _consumer), "InvalidConsumer");
+        if (!consumerIsAdded(_subId, _consumer)) {
+            revert InvalidConsumer();
+        }
         _;
     }
 

@@ -4,6 +4,7 @@ from brownie import (
     config,
     MockV3Aggregator,
     VRFCoordinatorV2Mock,
+    LinkToken,
     Contract,
 )
 
@@ -38,20 +39,20 @@ def deploy_mocks(
 ):
     MockV3Aggregator.deploy(decimals, initial_value, {"from": get_account()})
     VRFCoordinatorV2Mock.deploy(baseFee, gasPriceLink, {"from": get_account()})
-    MockV3Aggregator[-1]
-    VRFCoordinatorV2Mock[-1]
+    LinkToken.deploy({"from": get_account()})
 
 
 contract_to_mock = {
     "eth_usd_priceFeed": MockV3Aggregator,
     "vrfCoordintor": VRFCoordinatorV2Mock,
+    "link_token": LinkToken,
 }
 
 
 def get_contract(contract_name):
     """This contract fetches addresses from brownie config
     for mainnet and persistent development networks (external),
-    but deploys a dummy(mock) if testing in a local context.
+    otherwise deploys a dummy(mock) version if testing in a local context.
 
     Args:
         contract_name(string)
@@ -66,9 +67,3 @@ def get_contract(contract_name):
         return Contract.from_abi(
             contract_type._name, contract_address, contract_type.abi
         )
-
-
-def keyHash_test():
-    if network.show_active() not in LOCAL_BLOCKCHAIN_ENVIRONMENT:
-        return config["networks"][network.show_active()]["keyHash"]
-    return accounts.add(config["wallets"]["from_key"])

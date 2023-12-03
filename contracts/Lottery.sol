@@ -4,7 +4,7 @@ import "./VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
-pragma solidity ^0.8.22;
+pragma solidity >=0.6.6 <0.9.0;
 
 /*******************************************************************************
  *@title: LOTTERY.SOL
@@ -81,7 +81,7 @@ contract Lottery is VRFConsumerBaseV2 {
         lottery[lotteryCount].lotteryOperator = owner;
     }
 
-    mapping(uint256 => lotteryData) public lottery; // lotteryId/lotteryCount mapped to lotteryData
+    mapping(uint256 => lotteryData) public lottery; // lotteryId/lotteryCount  mapped to lotteryData
     mapping(uint256 => lotteryStatus) public s_request; // requestId mapped to lotteryStatus
 
     //events
@@ -183,7 +183,7 @@ contract Lottery is VRFConsumerBaseV2 {
         );
     }
 
-    function BuyTickets(uint256 _lotteryId, uint256 tickets) public payable {
+    function buyTickets(uint256 _lotteryId, uint256 tickets) public payable {
         uint256 payment = msg.value;
         require(tickets > 0, "Error: tickets must be greater than zero");
         require(

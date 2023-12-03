@@ -1,5 +1,6 @@
 dependencies:
   - smartcontractkit/chainlink@2.7.0
+  - openZeppelin/openzeppelin-contracts@5.0.0
 
 compiler:
   evm_version: null
@@ -7,19 +8,26 @@ compiler:
     version: v0.8.22
     remappings:
       - "@chainlink=smartcontractkit/chainlink@2.7.0"
+      - "@openzeppelin=openZeppelin/openzeppelin-contracts@5.0.0"
+ 
 
 networks:
   default: development
+  development:
+    keyHash: "0xD89B2BF150E3B9E13446986E571FB9CAB24B13CEA0A43EA20A6049A85CC807CC"
+    subId: 1
   mainnet-fork:
-    eth_usd_priceFeed: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
+    eth_usd_priceFeed: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"
+    vrfCoordinator: "0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625"
   Sepolia:
-    eth_usd_priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306
-    vrfCoordinator: 0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625
-    keyHash: 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c
-    link_token_contract: 0x779877A7B0D9E8603169DdbD7836e478b4624789
+    eth_usd_priceFeed: "0x694AA1769357215DE4FAC081bf1f309aDC325306"
+    vrfCoordinator: "0x8103B0A8A00be2DDC778e6e7eaa21791Cd364625"
+    keyHash: "0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c"
+    subId: 7056
     verify: True
   ganache-local:
-    verify: False
+    keyHash: "0xD89B2BF150E3B9E13446986E571FB9CAB24B13CEA0A43EA20A6049A85CC807CC"
+    subId: 1
 
 dotenv: .env
 wallets:
