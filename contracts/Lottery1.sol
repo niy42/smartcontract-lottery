@@ -71,7 +71,7 @@ contract Lottery is VRFConsumerBaseV2 {
     );
     event lotteryClaimed(
         uint256 lotteryId,
-        uint256 lotteryWinner,
+        address lotteryWinner,
         uint256 amount
     );
     event requestFulfilled(uint256[] randomWords);
@@ -230,7 +230,9 @@ contract Lottery is VRFConsumerBaseV2 {
         (bool sentWinner, ) = (currentLottery.lotteryWinner).call{
             value: winnerAmount
         }("");
+        address lotteryWinner = currentLottery.lotteryWinner;
         require(sentWinner, "Error: winner amount not sent!");
+        emit lotteryClaimed(lotteryId, lotteryWinner, winnerAmount);
     }
 
     function fulfillRandomWords(

@@ -41,7 +41,7 @@ def startLottery(maxTicket, ticketPrice):
         maxTicket,
         ticketPrice,
         expiration,
-        {"from": account, "gas": 2000000},
+        {"from": account},
     )
     tx.wait(1)
     time.sleep(1)
@@ -92,7 +92,7 @@ def endLottery(lotteryId):
     account = var_account()
     lottery = Lottery[-1]
     # fundLink = 100000000000000000000000
-    vrfSub()
+    vrfSub()  # for VRFMock subscription
     tx = lottery.endLottery(lotteryId, {"from": account})
     requestId = tx.events["requestLotteryWinnerSent"]["requestId"]
     print("Request_Id: ", requestId)
@@ -114,6 +114,17 @@ def drawLotteryWinner(lotteryId):
     print(f"The winner of the lottery is {event_winner}")
 
 
+def claimLottery(lotteryId):
+    account = var_account()
+    lottery = Lottery[-1]
+    tx = lottery.claimLottery(lotteryId, {"from": account})
+    tx.wait(1)
+    time.sleep(1)
+    amount = tx.events["lotteryClaimed"]["amount"]
+    lotteryWinner = tx.events["lotteryClaimed"]["lotteryWinner"]
+    print(f"Congratulation: {lotteryWinner} has claimed {amount}")
+
+
 def main():
     maxTicket = int(input("Set ticket max: "))
     ticketPrice = int(input("Set ticket price: "))
@@ -132,3 +143,4 @@ def main():
     )  # Pass payment per ticket to buy_tickets()
     endLottery(lotteryId)
     drawLotteryWinner(lotteryId)
+    claimLottery(lotteryId)

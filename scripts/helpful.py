@@ -8,7 +8,6 @@ from brownie import (
     Lottery,
     VRFv2SubscriptionManager,
 )
-import os
 
 LOCAL_BLOCKCHAIN_ENVIRONMENT = ["ganache-local", "development"]
 FORKED_BLOCKCHAIN_ENVIRONMENT = ["mainnet-fork", "mainnet-foke"]
