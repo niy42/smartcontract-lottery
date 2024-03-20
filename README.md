@@ -1,6 +1,8 @@
 # Welcome to the Lottery.sol Repository! 🎉
 
-![Lottery](https://img.shields.io/badge/Language-Solidity-brightgreen) ![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-orange)
+![Lottery](https://img.shields.io/badge/Language-Solidity-brightgreen)
+![Lottery](https://img.shields.io/badge/Language-Python3-red)
+![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-orange)
 
 ### About:
 In this repository, you'll find the `Lottery.sol` file, where you can dive into the world of blockchain and smart contracts. There's a lot to learn and explore within this repository! 😋
